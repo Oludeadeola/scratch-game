@@ -1,103 +1,136 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+/**
+ * The join screen.
+ *
+ * The PRD's first use case is a teacher sending one link and a 7-year-old
+ * tapping it — no email, no password. So joining asks for a first name, a class
+ * code and nothing else. The class code plus the week is the project key, which
+ * is what gives "one project per student per week".
+ *
+ * Phase 2 replaces this with teacher-created students and a picture password.
+ * Nothing here is stored off the device.
+ */
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { CHALLENGES } from '@/lib/challenges';
+
+const STORAGE_KEY = 'mathblocks:last-join';
+
+export default function JoinPage() {
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const [classCode, setClassCode] = useState('sunshine');
+  const [week, setWeek] = useState(1);
+  const [role, setRole] = useState<'student' | 'teacher'>('student');
+
+  // Remember the last join on this device so a child is not typing her name
+  // again every lesson.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      if (parsed.name) setName(parsed.name);
+      if (parsed.classCode) setClassCode(parsed.classCode);
+      if (parsed.role) setRole(parsed.role);
+    } catch {
+      // A blocked or full localStorage is not a reason to fail the join.
+    }
+  }, []);
+
+  function join(event: React.FormEvent) {
+    event.preventDefault();
+    const trimmed = name.trim();
+    const code = classCode.trim().toLowerCase().replace(/\s+/g, '-');
+    if (!trimmed || !code) return;
+
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ name: trimmed, classCode: code, role }),
+      );
+    } catch {
+      // Fine. The query string below carries everything we need anyway.
+    }
+
+    const params = new URLSearchParams({ name: trimmed, role, week: String(week) });
+    router.push(`/p/${code}-week-${week}?${params}`);
+  }
+
+  const challenge = CHALLENGES.find((c) => c.week === week);
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main className="join">
+      <form className="join-card" onSubmit={join}>
+        <h1 className="join-title">MathBlocks Live</h1>
+        <p className="join-sub">
+          Build the same project with your teacher, wherever you both are.
+        </p>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+        <label className="field">
+          <span>Your first name</span>
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Ada"
+            autoComplete="off"
+            required
+            maxLength={24}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+        </label>
+
+        <label className="field">
+          <span>Class code</span>
+          <input
+            value={classCode}
+            onChange={(event) => setClassCode(event.target.value)}
+            placeholder="sunshine"
+            autoComplete="off"
+            required
+            maxLength={32}
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+        </label>
+
+        <label className="field">
+          <span>Week</span>
+          <select value={week} onChange={(event) => setWeek(Number(event.target.value))}>
+            {CHALLENGES.map((c) => (
+              <option key={c.week} value={c.week}>
+                Week {c.week} — {c.project}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {challenge && <p className="join-challenge">{challenge.prompt}</p>}
+
+        <fieldset className="roles">
+          <legend>I am the</legend>
+          {(['student', 'teacher'] as const).map((option) => (
+            <label key={option} className={`role ${role === option ? 'is-on' : ''}`}>
+              <input
+                type="radio"
+                name="role"
+                value={option}
+                checked={role === option}
+                onChange={() => setRole(option)}
+              />
+              {option === 'student' ? 'Student' : 'Teacher'}
+            </label>
+          ))}
+        </fieldset>
+
+        <button type="submit" className="btn btn-primary btn-big">
+          Start
+        </button>
+
+        <p className="join-note">
+          Everyone who opens the same class code and week lands in the same
+          project.
+        </p>
+      </form>
+    </main>
   );
 }

@@ -177,8 +177,6 @@ function standingOn(state: RobotState, value: number): boolean {
 const lastSaid = (state: RobotState): string =>
   state.said.length ? state.said[state.said.length - 1] : 'nothing';
 
-const finalScore = (state: RobotState): string => String(state.score);
-
 const finalSpot = (state: RobotState): string =>
   near(state.y, 0, 1e-3) ? String(Math.round(state.x)) : 'off the number line';
 
@@ -367,8 +365,8 @@ export const CHALLENGES: Challenge[] = [
     project: 'Coin Catch Game',
     prompt: 'Make 41 cents using quarters, dimes, nickels and pennies.',
     standards: ['2.MD.C.8'],
-    predictQuestion: 'How many coins will you need?',
-    predictActual: (_state) => 'check your coin blocks',
+    predictQuestion: 'How many cents will the robot have at the end?',
+    predictActual: (state) => String(state.score),
     rules: [
       {
         label: 'Every jump is a coin: 25, 10, 5 or 1',

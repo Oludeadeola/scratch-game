@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync": "y-websocket",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "blockly": "^12.4.1",
