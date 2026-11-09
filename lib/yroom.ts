@@ -80,7 +80,8 @@ export interface Room {
   stars: Y.Map<number>;
   awareness: Awareness;
   websocket: WebsocketProvider | null;
-  indexeddb: IndexeddbPersistence;
+  /** Null when the browser has no usable IndexedDB. */
+  indexeddb: IndexeddbPersistence | null;
   /** Resolves once the local offline copy has loaded. */
   whenLoaded: Promise<void>;
   destroy: () => void;
@@ -101,10 +102,21 @@ export function openRoom(roomId: string): Room {
   const meta = doc.getMap<unknown>('meta');
   const stars = doc.getMap<number>('stars');
 
-  const indexeddb = new IndexeddbPersistence(`mathblocks:${roomId}`, doc);
-  const whenLoaded = new Promise<void>((resolve) => {
-    indexeddb.once('synced', () => resolve());
-  });
+  // IndexedDB is missing on the server, and can be blocked in a locked-down
+  // browser profile. Neither is a reason to fail the lesson: without it the
+  // room still syncs live, it just has no local copy to fall back on.
+  const canPersist =
+    typeof window !== 'undefined' && typeof indexedDB !== 'undefined';
+
+  const indexeddb = canPersist
+    ? new IndexeddbPersistence(`mathblocks:${roomId}`, doc)
+    : null;
+
+  const whenLoaded = indexeddb
+    ? new Promise<void>((resolve) => {
+        indexeddb.once('synced', () => resolve());
+      })
+    : Promise.resolve();
 
   let websocket: WebsocketProvider | null = null;
   try {
@@ -131,7 +143,7 @@ export function openRoom(roomId: string): Room {
     whenLoaded,
     destroy: () => {
       websocket?.destroy();
-      indexeddb.destroy();
+      indexeddb?.destroy();
       doc.destroy();
     },
   };

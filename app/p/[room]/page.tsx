@@ -5,7 +5,7 @@
  * week ride along in the query string so a tapped link needs no sign-in.
  */
 
-import Editor from '@/components/Editor';
+import EditorClient from '@/components/EditorClient';
 import type { Role } from '@/lib/yroom';
 
 export const dynamic = 'force-dynamic';
@@ -32,7 +32,7 @@ export default async function LessonPage({ params, searchParams }: PageProps) {
   const fromQuery = Number(first(query.week));
   const week = clampWeek(fromRoom || fromQuery || 1);
 
-  return <Editor roomId={room} name={name} role={role} week={week} />;
+  return <EditorClient roomId={room} name={name} role={role} week={week} />;
 }
 
 function clampWeek(value: number): number {

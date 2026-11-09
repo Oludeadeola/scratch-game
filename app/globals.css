@@ -774,3 +774,19 @@ select {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Boot                                                                */
+/* ------------------------------------------------------------------ */
+
+.boot {
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  place-items: center;
+}
+
+.boot-text {
+  font-weight: 700;
+  color: var(--ink-soft);
+}

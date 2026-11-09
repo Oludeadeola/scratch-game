@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
-    "start": "next start",
+    "dev": "node init && next dev --turbopack",
+    "build": "node init && next build --turbopack",
+    "start": "node init && next start",
     "lint": "eslint",
     "sync": "y-websocket",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify": "tsc lib/program.ts lib/runtime.ts lib/challenges.ts --outDir .verify --module commonjs --target es2020 --skipLibCheck --esModuleInterop && node scripts/check-challenges.cjs .verify"
   },
   "dependencies": {
     "blockly": "^12.4.1",
