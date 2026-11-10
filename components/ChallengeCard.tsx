@@ -10,15 +10,23 @@
 
 import { useEffect, useState } from 'react';
 import type { Challenge, CheckResult } from '@/lib/challenges';
+import type { Mode } from '@/lib/ages';
 import { speak, speechSupported } from '@/lib/speech';
 
 export interface ChallengeCardProps {
   challenge: Challenge;
   /** Null until the first run of this script. */
   result: CheckResult | null;
-  /** The prediction the student locked in before pressing Run. */
+  /** What she is typing now. */
   prediction: string;
+  /**
+   * The guess as it stood when Run was pressed, or null if she has not run
+   * yet. Frozen so the answer cannot be back-filled after the robot shows it,
+   * which would make the whole predict-first exercise pointless.
+   */
+  lockedPrediction: string | null;
   onPredictionChange: (value: string) => void;
+  mode: Mode;
   /** Stars earned on this challenge so far, including teacher bonuses. */
   stars: number;
   /** True while a run is playing, so we hide last run's marking. */
@@ -29,16 +37,26 @@ export default function ChallengeCard({
   challenge,
   result,
   prediction,
+  lockedPrediction,
   onPredictionChange,
   stars,
   running,
+  mode,
 }: ChallengeCardProps) {
   const [canSpeak, setCanSpeak] = useState(false);
   useEffect(() => setCanSpeak(speechSupported()), []);
 
+  // In Junior mode the challenge is read aloud on arrival, because the child
+  // it is written for cannot yet read it.
+  useEffect(() => {
+    if (mode !== 'junior' || !speechSupported()) return;
+    const timer = setTimeout(() => speak(challenge.prompt), 600);
+    return () => clearTimeout(timer);
+  }, [mode, challenge.prompt]);
+
   const showResult = result !== null && !running;
   const actual = showResult ? challenge.predictActual(result.state) : null;
-  const guessed = prediction.trim();
+  const guessed = (lockedPrediction ?? prediction).trim();
   const predictionRight =
     actual !== null && guessed !== '' && guessed.toLowerCase() === actual.toLowerCase();
 
@@ -76,11 +94,12 @@ export default function ChallengeCard({
         <input
           id="prediction"
           className="predict-input"
-          value={prediction}
+          value={lockedPrediction ?? prediction}
           onChange={(event) => onPredictionChange(event.target.value)}
           placeholder="Your guess"
           inputMode="numeric"
           autoComplete="off"
+          readOnly={lockedPrediction !== null}
         />
         {showResult && (
           <p className={`predict-compare ${predictionRight ? 'is-right' : ''}`}>

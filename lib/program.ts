@@ -14,8 +14,11 @@ export const OPS = [
   'go_to_number',
   'go_home',
   'say_text',
+  'say_for_seconds',
   'say_score',
   'say_each_number',
+  'grow_by',
+  'shrink_by',
   'set_score',
   'change_score',
   'pen_down',
@@ -23,6 +26,7 @@ export const OPS = [
   'wait_seconds',
   'repeat_times',
   'if_score',
+  'stop_all',
 ] as const;
 
 export type Op = (typeof OPS)[number];
@@ -97,8 +101,14 @@ export function describeNode(node: Node): string {
       return 'go back to start';
     case 'say_text':
       return `say ${str(node, 'TEXT')}`;
+    case 'say_for_seconds':
+      return `say ${str(node, 'TEXT')} for ${num(node, 'N')} seconds`;
     case 'say_score':
       return 'say the score';
+    case 'grow_by':
+      return `grow by ${num(node, 'N')}`;
+    case 'shrink_by':
+      return `shrink by ${num(node, 'N')}`;
     case 'say_each_number':
       return `say each number from ${num(node, 'FROM')} to ${num(
         node,
@@ -118,6 +128,8 @@ export function describeNode(node: Node): string {
       return `repeat ${num(node, 'N')} times`;
     case 'if_score':
       return `if score is ${str(node, 'CMP', '=')} ${num(node, 'N')}`;
+    case 'stop_all':
+      return 'stop';
     default:
       return node.op;
   }

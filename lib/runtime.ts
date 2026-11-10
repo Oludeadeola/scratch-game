@@ -35,6 +35,8 @@ export interface RobotState {
   /** Degrees. 0 points right, along increasing numbers; 90 points up. */
   heading: number;
   score: number;
+  /** Robot scale. 1 is normal; `grow by` and `shrink by` move it. */
+  size: number;
   penDown: boolean;
   lines: PenLine[];
   /** Current speech bubble, or null. */
@@ -56,6 +58,7 @@ export const START_STATE: RobotState = Object.freeze({
   y: 0,
   heading: 0,
   score: 0,
+  size: 1,
   penDown: false,
   lines: [],
   bubble: null,
@@ -120,6 +123,8 @@ function say(state: RobotState, text: string): void {
 export function* execute(program: Program): Generator<Frame, RobotState, void> {
   const state = freshState();
   let frames = 0;
+  /** Set by `stop`, which must unwind out of every enclosing loop. */
+  let stopped = false;
 
   function* emit(blockId: string, pauseMs = 0): Generator<Frame, void, void> {
     frames += 1;
@@ -128,7 +133,7 @@ export function* execute(program: Program): Generator<Frame, RobotState, void> {
 
   function* run(nodes: Node[]): Generator<Frame, void, void> {
     for (const node of nodes) {
-      if (frames >= MAX_FRAMES) return;
+      if (stopped || frames >= MAX_FRAMES) return;
 
       switch (node.op) {
         case 'move_steps':
@@ -164,6 +169,23 @@ export function* execute(program: Program): Generator<Frame, RobotState, void> {
 
         case 'say_text':
           say(state, readText(node, 'TEXT'));
+          yield* emit(node.id);
+          break;
+
+        case 'say_for_seconds':
+          say(state, readText(node, 'TEXT'));
+          yield* emit(node.id, Math.max(0, readNumber(node, 'N')) * 1000);
+          break;
+
+        case 'grow_by':
+          // Bounded so a child cannot shrink the robot to nothing or grow it
+          // off the stage and think the app broke.
+          state.size = Math.min(4, state.size + readNumber(node, 'N') * 0.25);
+          yield* emit(node.id);
+          break;
+
+        case 'shrink_by':
+          state.size = Math.max(0.25, state.size - readNumber(node, 'N') * 0.25);
           yield* emit(node.id);
           break;
 
@@ -216,7 +238,7 @@ export function* execute(program: Program): Generator<Frame, RobotState, void> {
             Math.max(0, Math.floor(readNumber(node, 'N'))),
           );
           for (let i = 0; i < times; i += 1) {
-            if (frames >= MAX_FRAMES) break;
+            if (stopped || frames >= MAX_FRAMES) break;
             yield* emit(node.id);
             if (node.body) yield* run(node.body);
           }
@@ -231,6 +253,11 @@ export function* execute(program: Program): Generator<Frame, RobotState, void> {
           }
           break;
         }
+
+        case 'stop_all':
+          yield* emit(node.id);
+          stopped = true;
+          return;
 
         default:
           break;

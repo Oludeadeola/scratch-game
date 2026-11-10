@@ -1,19 +1,27 @@
 /**
- * Blockly block definitions and the palette.
+ * Blockly block definitions, in two wordings.
  *
- * Styling follows the PRD's accessibility floor rather than Blockly's defaults:
- * 18px text, high-contrast category colours, and chunky blocks that a 7-year-old
- * can hit with a finger on an iPad.
+ * Every block exists once, with one type and one set of field names. What
+ * changes with the child's age is only how it reads:
  *
- * Numbers deliberately do NOT use Blockly's built-in number field. They use
- * `field_mathblocks_number`, which opens the big on-screen number pad, so a
- * child never has to find the keyboard.
+ *   Builder (8+)  "move 5 steps"          — Scratch shaped, worded
+ *   Junior  (4-7) "➡️ 5"                   — ScratchJr shaped, pictures
+ *
+ * Because the shared events carry block types and field values and never
+ * labels, a 6-year-old in Junior mode and her teacher in Builder mode can drag
+ * blocks into the same script and each sees it in their own language. That is
+ * the thing neither Scratch nor ScratchJr can do, and it is worth the small
+ * amount of indirection below.
+ *
+ * Numbers never use Blockly's inline editor. They route to the big on-screen
+ * pad through `field_mathblocks_number`, so a child never meets a keyboard.
  */
 
 import * as Blockly from 'blockly/core';
+import { type Mode } from './ages';
 import { type Node, type Program } from './program';
 
-/** Category colours. Chosen for contrast against the light editor background. */
+/** Category colours, chosen for contrast on the light editor background. */
 export const COLOURS = {
   motion: '#1d6fd0',
   looks: '#8a3ffc',
@@ -28,13 +36,6 @@ export const HAT_BLOCK = 'when_run_clicked';
 /* The number pad field                                                */
 /* ------------------------------------------------------------------ */
 
-/**
- * Opens the app's number pad instead of an inline text editor.
- *
- * The field itself stays a plain number field as far as Blockly is concerned;
- * we just intercept the click. The React layer registers `onRequestNumberPad`
- * at mount, which keeps all the DOM and styling for the pad in React.
- */
 export type NumberPadRequest = {
   initial: number;
   min: number;
@@ -81,12 +82,26 @@ class MathBlocksNumberField extends Blockly.FieldNumber {
 }
 
 /* ------------------------------------------------------------------ */
-/* Block definitions                                                   */
+/* Block specs                                                         */
 /* ------------------------------------------------------------------ */
 
-type BlockJson = Parameters<typeof Blockly.common.createBlockDefinitionsFromJsonArray>[0][number];
+type FieldJson = Record<string, unknown>;
 
-const padNumber = (name: string, value: number, min: number, max: number) => ({
+interface BlockSpec {
+  type: string;
+  /** Worded label for ages 8+. */
+  builder: string;
+  /** Picture label for ages 4-7. */
+  junior: string;
+  args?: FieldJson[];
+  colour: string;
+  /** Plain words for the tooltip and for read aloud. */
+  tooltip: string;
+  /** True for blocks that wrap other blocks. */
+  hasBody?: boolean;
+}
+
+const pad = (name: string, value: number, min: number, max: number): FieldJson => ({
   type: 'field_mathblocks_number',
   name,
   value,
@@ -94,46 +109,35 @@ const padNumber = (name: string, value: number, min: number, max: number) => ({
   max,
 });
 
-const BLOCK_JSON: BlockJson[] = [
-  {
-    type: HAT_BLOCK,
-    message0: '▶  when Run is clicked',
-    nextStatement: null,
-    colour: '#334155',
-    tooltip: 'Everything under here runs when you press Run.',
-    deletable: false,
-    movable: false,
-  },
-
+const SPECS: BlockSpec[] = [
   /* Motion -------------------------------------------------------- */
   {
     type: 'move_steps',
-    message0: 'move %1 steps',
-    args0: [padNumber('N', 5, 0, 20)],
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'move %1 steps',
+    junior: '➡️ %1',
+    args: [pad('N', 5, 0, 20)],
     colour: COLOURS.motion,
     tooltip: 'Move forward along the number line.',
   },
   {
     type: 'move_back',
-    message0: 'move back %1 steps',
-    args0: [padNumber('N', 5, 0, 20)],
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'move back %1 steps',
+    junior: '⬅️ %1',
+    args: [pad('N', 5, 0, 20)],
     colour: COLOURS.motion,
     tooltip: 'Move backwards along the number line.',
   },
   {
     type: 'turn_fraction',
-    message0: 'turn %1 by %2 turn',
-    args0: [
+    builder: 'turn %1 by %2 turn',
+    junior: '%1 %2',
+    args: [
       {
         type: 'field_dropdown',
         name: 'DIR',
         options: [
-          ['right ↻', 'right'],
-          ['left ↺', 'left'],
+          ['↻', 'right'],
+          ['↺', 'left'],
         ],
       },
       {
@@ -146,25 +150,21 @@ const BLOCK_JSON: BlockJson[] = [
         ],
       },
     ],
-    previousStatement: null,
-    nextStatement: null,
     colour: COLOURS.motion,
     tooltip: 'Turn part of a whole turn.',
   },
   {
     type: 'go_to_number',
-    message0: 'go to number %1',
-    args0: [padNumber('N', 10, 0, 20)],
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'go to number %1',
+    junior: '🎯 %1',
+    args: [pad('N', 10, 0, 20)],
     colour: COLOURS.motion,
     tooltip: 'Jump straight to a number on the number line.',
   },
   {
     type: 'go_home',
-    message0: 'go back to start',
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'go back to start',
+    junior: '🏠',
     colour: COLOURS.motion,
     tooltip: 'Go back to 0 and face right.',
   },
@@ -172,51 +172,69 @@ const BLOCK_JSON: BlockJson[] = [
   /* Looks --------------------------------------------------------- */
   {
     type: 'say_text',
-    message0: 'say %1',
-    args0: [{ type: 'field_input', name: 'TEXT', text: 'Hello!' }],
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'say %1',
+    junior: '💬 %1',
+    args: [{ type: 'field_input', name: 'TEXT', text: 'Hello!' }],
     colour: COLOURS.looks,
     tooltip: 'Show a speech bubble.',
   },
   {
+    type: 'say_for_seconds',
+    builder: 'say %1 for %2 seconds',
+    junior: '💬 %1 ⏱️ %2',
+    args: [
+      { type: 'field_input', name: 'TEXT', text: 'Hello!' },
+      pad('N', 2, 0, 60),
+    ],
+    colour: COLOURS.looks,
+    tooltip: 'Show a speech bubble, then carry on after a pause.',
+  },
+  {
     type: 'say_score',
-    message0: 'say the score',
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'say the score',
+    junior: '💬 🏆',
     colour: COLOURS.looks,
     tooltip: 'Say whatever the score is right now.',
   },
   {
     type: 'say_each_number',
-    message0: 'say each number from %1 to %2 counting by %3',
-    args0: [
-      padNumber('FROM', 0, -100, 200),
-      padNumber('TO', 20, -100, 200),
-      padNumber('STEP', 2, 1, 100),
-    ],
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'say each number from %1 to %2 counting by %3',
+    junior: '🔢 %1 → %2 ⏭️ %3',
+    args: [pad('FROM', 0, -100, 200), pad('TO', 20, -100, 200), pad('STEP', 2, 1, 100)],
     colour: COLOURS.looks,
     tooltip: 'Count out loud, one number at a time.',
+  },
+  {
+    type: 'grow_by',
+    builder: 'grow by %1',
+    junior: '🔍➕ %1',
+    args: [pad('N', 2, 0, 10)],
+    colour: COLOURS.looks,
+    tooltip: 'Make the robot bigger.',
+  },
+  {
+    type: 'shrink_by',
+    builder: 'shrink by %1',
+    junior: '🔍➖ %1',
+    args: [pad('N', 2, 0, 10)],
+    colour: COLOURS.looks,
+    tooltip: 'Make the robot smaller.',
   },
 
   /* Score --------------------------------------------------------- */
   {
     type: 'set_score',
-    message0: 'set score to %1',
-    args0: [padNumber('N', 0, -100, 999)],
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'set score to %1',
+    junior: '🏆 = %1',
+    args: [pad('N', 0, -100, 999)],
     colour: COLOURS.score,
     tooltip: 'Make the score exactly this number.',
   },
   {
     type: 'change_score',
-    message0: 'change score by %1',
-    args0: [padNumber('N', 5, -100, 999)],
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'change score by %1',
+    junior: '🏆 ➕ %1',
+    args: [pad('N', 5, -100, 999)],
     colour: COLOURS.score,
     tooltip: 'Add to the score. Use a minus number to take away.',
   },
@@ -224,17 +242,15 @@ const BLOCK_JSON: BlockJson[] = [
   /* Pen ----------------------------------------------------------- */
   {
     type: 'pen_down',
-    message0: 'pen down',
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'pen down',
+    junior: '🖍️ ⬇️',
     colour: COLOURS.pen,
     tooltip: 'Start drawing a line as the robot moves.',
   },
   {
     type: 'pen_up',
-    message0: 'pen up',
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'pen up',
+    junior: '🖍️ ⬆️',
     colour: COLOURS.pen,
     tooltip: 'Stop drawing.',
   },
@@ -242,28 +258,26 @@ const BLOCK_JSON: BlockJson[] = [
   /* Control ------------------------------------------------------- */
   {
     type: 'wait_seconds',
-    message0: 'wait %1 seconds',
-    args0: [padNumber('N', 1, 0, 60)],
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'wait %1 seconds',
+    junior: '⏱️ %1',
+    args: [pad('N', 1, 0, 60)],
     colour: COLOURS.control,
     tooltip: 'Pause before the next block.',
   },
   {
     type: 'repeat_times',
-    message0: 'repeat %1 times',
-    args0: [padNumber('N', 4, 0, 100)],
-    message1: '%1',
-    args1: [{ type: 'input_statement', name: 'BODY' }],
-    previousStatement: null,
-    nextStatement: null,
+    builder: 'repeat %1 times',
+    junior: '🔁 %1',
+    args: [pad('N', 4, 0, 100)],
     colour: COLOURS.control,
     tooltip: 'Do the blocks inside over and over.',
+    hasBody: true,
   },
   {
     type: 'if_score',
-    message0: 'if score is %1 %2',
-    args0: [
+    builder: 'if score is %1 %2',
+    junior: '❓ 🏆 %1 %2',
+    args: [
       {
         type: 'field_dropdown',
         name: 'CMP',
@@ -273,124 +287,173 @@ const BLOCK_JSON: BlockJson[] = [
           ['less than', '<'],
         ],
       },
-      padNumber('N', 10, -100, 999),
+      pad('N', 10, -100, 999),
     ],
-    message1: '%1',
-    args1: [{ type: 'input_statement', name: 'BODY' }],
-    previousStatement: null,
-    nextStatement: null,
     colour: COLOURS.control,
     tooltip: 'Only do the blocks inside when the score matches.',
+    hasBody: true,
+  },
+  {
+    type: 'stop_all',
+    builder: 'stop',
+    junior: '🛑',
+    colour: COLOURS.control,
+    tooltip: 'Stop the whole script here.',
   },
 ];
 
-let registered = false;
+const SPEC_BY_TYPE = new Map(SPECS.map((spec) => [spec.type, spec]));
 
-/** Registers blocks and the number-pad field. Safe to call more than once. */
-export function registerBlocks(): void {
-  if (registered) return;
-  registered = true;
-
-  Blockly.fieldRegistry.register(
-    'field_mathblocks_number',
-    MathBlocksNumberField,
-  );
-  Blockly.common.defineBlocks(
-    Blockly.common.createBlockDefinitionsFromJsonArray(BLOCK_JSON),
-  );
+/** Plain words for a block type, used by read aloud and tooltips. */
+export function tooltipForType(type: string): string {
+  return SPEC_BY_TYPE.get(type)?.tooltip ?? type;
 }
 
 /* ------------------------------------------------------------------ */
-/* Palette                                                             */
+/* Registration                                                        */
 /* ------------------------------------------------------------------ */
 
-export const TOOLBOX: Blockly.utils.toolbox.ToolboxDefinition = {
-  kind: 'categoryToolbox',
-  contents: [
-    {
-      kind: 'category',
-      name: 'Move',
-      colour: COLOURS.motion,
-      contents: [
-        { kind: 'block', type: 'move_steps' },
-        { kind: 'block', type: 'move_back' },
-        { kind: 'block', type: 'turn_fraction' },
-        { kind: 'block', type: 'go_to_number' },
-        { kind: 'block', type: 'go_home' },
-      ],
-    },
-    {
-      kind: 'category',
-      name: 'Say',
-      colour: COLOURS.looks,
-      contents: [
-        { kind: 'block', type: 'say_text' },
-        { kind: 'block', type: 'say_score' },
-        { kind: 'block', type: 'say_each_number' },
-      ],
-    },
-    {
-      kind: 'category',
-      name: 'Score',
-      colour: COLOURS.score,
-      contents: [
-        { kind: 'block', type: 'set_score' },
-        { kind: 'block', type: 'change_score' },
-      ],
-    },
-    {
-      kind: 'category',
-      name: 'Pen',
-      colour: COLOURS.pen,
-      contents: [
-        { kind: 'block', type: 'pen_down' },
-        { kind: 'block', type: 'pen_up' },
-      ],
-    },
-    {
-      kind: 'category',
-      name: 'Control',
-      colour: COLOURS.control,
-      contents: [
-        { kind: 'block', type: 'wait_seconds' },
-        { kind: 'block', type: 'repeat_times' },
-        { kind: 'block', type: 'if_score' },
-      ],
-    },
-  ],
+function buildJson(spec: BlockSpec, mode: Mode): Record<string, unknown> {
+  const json: Record<string, unknown> = {
+    type: spec.type,
+    message0: mode === 'junior' ? spec.junior : spec.builder,
+    colour: spec.colour,
+    tooltip: spec.tooltip,
+    previousStatement: null,
+    nextStatement: null,
+  };
+  if (spec.args?.length) json.args0 = spec.args;
+  if (spec.hasBody) {
+    json.message1 = '%1';
+    json.args1 = [{ type: 'input_statement', name: 'BODY' }];
+  }
+  // `stop` ends a script, so nothing may follow it.
+  if (spec.type === 'stop_all') delete json.nextStatement;
+  return json;
+}
+
+function hatJson(mode: Mode): Record<string, unknown> {
+  return {
+    type: HAT_BLOCK,
+    message0: mode === 'junior' ? '🏁' : '▶  when Run is clicked',
+    nextStatement: null,
+    colour: '#334155',
+    tooltip: 'Everything under here runs when you press Run.',
+    deletable: false,
+    movable: false,
+  };
+}
+
+let registeredMode: Mode | null = null;
+
+/**
+ * Defines every block in the wording for this mode.
+ *
+ * Re-registering with a different mode redefines the same types with new
+ * labels, which is safe: existing blocks keep their type and field values.
+ */
+export function registerBlocks(mode: Mode): void {
+  if (registeredMode === mode) return;
+  registeredMode = mode;
+
+  if (!Blockly.fieldRegistry.fromJson({ type: 'field_mathblocks_number' })) {
+    Blockly.fieldRegistry.register('field_mathblocks_number', MathBlocksNumberField);
+  }
+
+  const definitions = Blockly.common.createBlockDefinitionsFromJsonArray([
+    hatJson(mode),
+    ...SPECS.map((spec) => buildJson(spec, mode)),
+  ] as Parameters<typeof Blockly.common.createBlockDefinitionsFromJsonArray>[0]);
+
+  Blockly.common.defineBlocks(definitions);
+}
+
+/* ------------------------------------------------------------------ */
+/* Palettes                                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Junior sees a short palette. Every block here can be understood from its
+ * picture, and the abstract ones (conditionals, set-score, ranged counting)
+ * are held back until Builder.
+ */
+const JUNIOR_PALETTE: Record<string, string[]> = {
+  Move: ['move_steps', 'move_back', 'turn_fraction', 'go_home'],
+  Say: ['say_text', 'say_score', 'grow_by', 'shrink_by'],
+  Score: ['change_score'],
+  Pen: ['pen_down', 'pen_up'],
+  Control: ['wait_seconds', 'repeat_times', 'stop_all'],
 };
 
-/** A Scratch-ish theme: bold text, rounded blocks, strong category colours. */
-export const THEME = Blockly.Theme.defineTheme('mathblocks', {
-  name: 'mathblocks',
-  base: Blockly.Themes.Zelos,
-  componentStyles: {
-    workspaceBackgroundColour: '#f8fafc',
-    toolboxBackgroundColour: '#ffffff',
-    toolboxForegroundColour: '#0f172a',
-    flyoutBackgroundColour: '#eef2f7',
-    flyoutForegroundColour: '#0f172a',
-    flyoutOpacity: 1,
-    scrollbarColour: '#94a3b8',
-    insertionMarkerColour: '#0f172a',
-    insertionMarkerOpacity: 0.4,
-    cursorColour: '#0f172a',
-  },
-  fontStyle: { family: 'system-ui, sans-serif', weight: 'bold', size: 13 },
-});
+const BUILDER_PALETTE: Record<string, string[]> = {
+  Move: ['move_steps', 'move_back', 'turn_fraction', 'go_to_number', 'go_home'],
+  Say: ['say_text', 'say_for_seconds', 'say_score', 'say_each_number', 'grow_by', 'shrink_by'],
+  Score: ['set_score', 'change_score'],
+  Pen: ['pen_down', 'pen_up'],
+  Control: ['wait_seconds', 'repeat_times', 'if_score', 'stop_all'],
+};
+
+const CATEGORY_COLOUR: Record<string, string> = {
+  Move: COLOURS.motion,
+  Say: COLOURS.looks,
+  Score: COLOURS.score,
+  Pen: COLOURS.pen,
+  Control: COLOURS.control,
+};
+
+/** Picture-only category names for Junior, so the palette needs no reading. */
+const JUNIOR_CATEGORY_NAME: Record<string, string> = {
+  Move: '➡️',
+  Say: '💬',
+  Score: '🏆',
+  Pen: '🖍️',
+  Control: '🔁',
+};
+
+export function toolboxFor(mode: Mode): Blockly.utils.toolbox.ToolboxDefinition {
+  const palette = mode === 'junior' ? JUNIOR_PALETTE : BUILDER_PALETTE;
+  return {
+    kind: 'categoryToolbox',
+    contents: Object.entries(palette).map(([name, types]) => ({
+      kind: 'category',
+      name: mode === 'junior' ? JUNIOR_CATEGORY_NAME[name] : name,
+      colour: CATEGORY_COLOUR[name],
+      contents: types.map((type) => ({ kind: 'block', type })),
+    })),
+  };
+}
+
+/** A Scratch-ish theme. Junior gets larger type. */
+export function themeFor(mode: Mode): Blockly.Theme {
+  return Blockly.Theme.defineTheme(`mathblocks-${mode}`, {
+    name: `mathblocks-${mode}`,
+    base: Blockly.Themes.Zelos,
+    componentStyles: {
+      workspaceBackgroundColour: '#f8fafc',
+      toolboxBackgroundColour: '#ffffff',
+      toolboxForegroundColour: '#0f172a',
+      flyoutBackgroundColour: '#eef2f7',
+      flyoutForegroundColour: '#0f172a',
+      flyoutOpacity: 1,
+      scrollbarColour: '#94a3b8',
+      insertionMarkerColour: '#0f172a',
+      insertionMarkerOpacity: 0.4,
+      cursorColour: '#0f172a',
+    },
+    fontStyle: {
+      family: 'system-ui, sans-serif',
+      weight: 'bold',
+      size: mode === 'junior' ? 15 : 12,
+    },
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /* Workspace -> Program                                                */
 /* ------------------------------------------------------------------ */
 
-/**
- * Reads the script under the hat block into the plain Program the interpreter
- * and the challenge checkers understand.
- */
 export function workspaceToProgram(workspace: Blockly.Workspace): Program {
-  const hat = workspace
-    .getTopBlocks(true)
-    .find((block) => block.type === HAT_BLOCK);
+  const hat = workspace.getTopBlocks(true).find((block) => block.type === HAT_BLOCK);
   if (!hat) return { nodes: [] };
   return { nodes: chainToNodes(hat.getNextBlock()) };
 }
@@ -399,9 +462,7 @@ function chainToNodes(start: Blockly.Block | null): Node[] {
   const nodes: Node[] = [];
   let block = start;
   while (block) {
-    if (!block.isInsertionMarker()) {
-      nodes.push(blockToNode(block));
-    }
+    if (!block.isInsertionMarker()) nodes.push(blockToNode(block));
     block = block.getNextBlock();
   }
   return nodes;
@@ -414,7 +475,7 @@ function blockToNode(block: Blockly.Block): Node {
       const name = field.name;
       if (!name) continue;
       const raw = field.getValue();
-      // Dropdowns carry strings; everything else that parses as a number is one.
+      // Dropdowns carry strings; anything that parses as a number becomes one.
       const asNumber = Number(raw);
       args[name] =
         raw !== null && raw !== '' && Number.isFinite(asNumber)
@@ -423,14 +484,20 @@ function blockToNode(block: Blockly.Block): Node {
     }
   }
 
-  const node: Node = {
-    id: block.id,
-    op: block.type as Node['op'],
-    args,
-  };
-
+  const node: Node = { id: block.id, op: block.type as Node['op'], args };
   const body = block.getInputTargetBlock('BODY');
   if (body) node.body = chainToNodes(body);
-
   return node;
+}
+
+/** The last block in the script, which is where a tapped block attaches. */
+export function lastBlockInScript(
+  workspace: Blockly.Workspace,
+  hatId: string,
+): Blockly.Block | null {
+  const hat = workspace.getBlockById(hatId);
+  if (!hat) return null;
+  let block: Blockly.Block = hat;
+  while (block.getNextBlock()) block = block.getNextBlock() as Blockly.Block;
+  return block;
 }

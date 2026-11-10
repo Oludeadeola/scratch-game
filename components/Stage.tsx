@@ -120,7 +120,7 @@ export default function Stage({ state, running = false }: StageProps) {
 
         {/* Robot */}
         <g
-          transform={`translate(${sx(robotX)} ${sy(robotY)}) rotate(${-state.heading})`}
+          transform={`translate(${sx(robotX)} ${sy(robotY)}) rotate(${-state.heading}) scale(${state.size})`}
           opacity={offGrid ? 0.55 : 1}
         >
           <Robot penDown={state.penDown} />
