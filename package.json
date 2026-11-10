@@ -7,9 +7,11 @@
     "build": "node init && next build --turbopack",
     "start": "node init && next start",
     "lint": "eslint",
-    "sync": "y-websocket",
+    "sync": "y-websocket-server",
     "typecheck": "tsc --noEmit",
-    "verify": "tsc lib/program.ts lib/runtime.ts lib/challenges.ts --outDir .verify --module commonjs --target es2020 --skipLibCheck --esModuleInterop && node scripts/check-challenges.cjs .verify"
+    "verify": "tsc lib/program.ts lib/runtime.ts lib/challenges.ts --outDir .verify --module commonjs --target es2020 --skipLibCheck --esModuleInterop && node scripts/check-challenges.cjs .verify",
+    "verify:sync": "node scripts/check-sync.cjs",
+    "verify:all": "npm run typecheck && npm run verify && npm run verify:sync"
   },
   "dependencies": {
     "blockly": "^12.4.1",
@@ -27,6 +29,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@y/websocket-server": "^0.1.5",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
     "tailwindcss": "^4",
