@@ -20,7 +20,7 @@
 
 import * as Blockly from 'blockly/core';
 import type * as Y from 'yjs';
-import { HAT_BLOCK, registerBlocks } from './blocks';
+import { HAT_BLOCK } from './blocks';
 import type { Room } from './yroom';
 
 /** Marks transactions we originated, so we don't replay our own events. */
@@ -44,7 +44,7 @@ function isBroadcastable(event: Blockly.Events.Abstract): boolean {
 
 /** Creates the "when Run is clicked" hat, identically on every client. */
 export function seedWorkspace(workspace: Blockly.WorkspaceSvg): void {
-  registerBlocks();
+  // Blocks are registered by the pane, in the wording for this child's age.
   if (workspace.getBlockById(HAT_ID)) return;
 
   Blockly.Events.disable();
@@ -90,8 +90,6 @@ export interface BindOptions {
   room: Room;
   /** Called after the workspace changes, local or remote. */
   onChange?: () => void;
-  /** While true, local edits are neither applied nor sent. */
-  isLocked?: () => boolean;
 }
 
 /**
@@ -102,7 +100,6 @@ export async function bindWorkspace({
   workspace,
   room,
   onChange,
-  isLocked,
 }: BindOptions): Promise<() => void> {
   await room.whenLoaded;
 
@@ -136,8 +133,11 @@ export async function bindWorkspace({
   room.events.observe(observer);
 
   const listener = (event: Blockly.Events.Abstract) => {
+    // Note there is deliberately no "are we locked?" check here. Dropping a
+    // local edit would leave that workspace permanently out of step with the
+    // room, which is worse than the edit. The lock is enforced in the UI, by
+    // making the workspace inert, so no local edit happens in the first place.
     if (!isBroadcastable(event)) return;
-    if (isLocked?.()) return;
     room.doc.transact(() => {
       room.events.push([JSON.stringify(event.toJson())]);
     }, LOCAL_ORIGIN);

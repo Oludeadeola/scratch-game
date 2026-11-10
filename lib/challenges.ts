@@ -25,6 +25,8 @@ export interface Challenge {
   prompt: string;
   /** Common Core code(s) this challenge practises. */
   standards: string[];
+  /** One short thing a parent can do away from the screen. */
+  tryAtHome: string;
   /** The "predict first" question asked before Run. */
   predictQuestion: string;
   /** What the robot actually did, to show next to her guess. */
@@ -190,6 +192,7 @@ export const CHALLENGES: Challenge[] = [
     project: 'Robot Number Quest',
     prompt: 'Make the robot count by 5s and say 50.',
     standards: ['2.NBT.A.2'],
+    tryAtHome: "Count up in 5s together while climbing stairs or laying the table.",
     predictQuestion: 'What number will the robot say at the end?',
     predictActual: lastSaid,
     rules: [
@@ -210,6 +213,7 @@ export const CHALLENGES: Challenge[] = [
     project: 'Shape Drawing Studio',
     prompt: 'Draw a square, then draw a triangle.',
     standards: ['2.G.A.1'],
+    tryAtHome: "Hunt for squares and triangles around the house and count their sides.",
     predictQuestion: 'How many corners will your two shapes have altogether?',
     predictActual: (state) => {
       const corners = shapes(state.lines).reduce(
@@ -238,6 +242,7 @@ export const CHALLENGES: Challenge[] = [
     project: 'Number Line Treasure Hunt',
     prompt: 'Land on 12 using exactly two jumps.',
     standards: ['2.MD.B.6', '2.NBT.B.8'],
+    tryAtHome: "Hide a treat and give two-jump directions: \"go forward 7, then 5\".",
     predictQuestion: 'Which number will the robot land on?',
     predictActual: finalSpot,
     rules: [
@@ -250,6 +255,7 @@ export const CHALLENGES: Challenge[] = [
     project: 'Math Quiz Master',
     prompt: 'Start at 15, then jump back to 8.',
     standards: ['2.OA.B.2'],
+    tryAtHome: "Start at a number and count backwards together to a smaller one.",
     predictQuestion: 'Which number will the robot land on?',
     predictActual: finalSpot,
     rules: [
@@ -272,6 +278,7 @@ export const CHALLENGES: Challenge[] = [
     project: 'Sharing Machine',
     prompt: 'Repeat 3 times, add 4 each time, and say 12.',
     standards: ['2.OA.C.4'],
+    tryAtHome: "Share out grapes or blocks into equal groups and count the total.",
     predictQuestion: 'What number will the robot say at the end?',
     predictActual: lastSaid,
     rules: [
@@ -295,6 +302,7 @@ export const CHALLENGES: Challenge[] = [
     project: 'Countdown Clock',
     prompt: 'Count back by 5s from 60 all the way to 0.',
     standards: ['2.MD.C.7'],
+    tryAtHome: "Count down from 60 by 5s while waiting for something to cook.",
     predictQuestion: 'How many numbers will the robot say?',
     predictActual: (state) => String(state.said.length),
     rules: [
@@ -310,6 +318,7 @@ export const CHALLENGES: Challenge[] = [
     project: 'Pizza Party Shares',
     prompt: 'Turn the robot by a half, a third and a quarter turn.',
     standards: ['2.G.A.3'],
+    tryAtHome: "Cut toast or pizza into halves, thirds and quarters and name each.",
     predictQuestion: 'Will the robot be facing the same way as it started?',
     predictActual: (state) =>
       near(state.heading, 0, 1e-3) ? 'yes, the same way' : 'no, a different way',
@@ -327,6 +336,7 @@ export const CHALLENGES: Challenge[] = [
     project: 'Pattern Detective',
     prompt: 'Make the robot say only the even numbers up to 20.',
     standards: ['2.OA.C.3'],
+    tryAtHome: "Take turns saying only the even numbers up to 20.",
     predictQuestion: 'How many even numbers are there up to 20?',
     predictActual: (state) => String(state.said.length),
     rules: [
@@ -345,6 +355,7 @@ export const CHALLENGES: Challenge[] = [
     project: 'Measuring Code Artist',
     prompt: 'Draw two lines. Make the second line 3 longer than the first.',
     standards: ['2.MD.A.4'],
+    tryAtHome: "Measure two things with a ruler and work out the difference.",
     predictQuestion: 'How long will the second line be?',
     predictActual: (state) =>
       state.lines.length >= 2
@@ -365,6 +376,7 @@ export const CHALLENGES: Challenge[] = [
     project: 'Coin Catch Game',
     prompt: 'Make 41 cents using quarters, dimes, nickels and pennies.',
     standards: ['2.MD.C.8'],
+    tryAtHome: "Make amounts with real coins and find two ways to reach the same total.",
     predictQuestion: 'How many cents will the robot have at the end?',
     predictActual: (state) => String(state.score),
     rules: [
@@ -385,6 +397,7 @@ export const CHALLENGES: Challenge[] = [
     project: 'Place Value Builder',
     prompt: 'Build 245 using jumps of 100, 10 and 1.',
     standards: ['2.NBT.A.1'],
+    tryAtHome: "Say a three-digit number and ask how many hundreds, tens and ones.",
     predictQuestion: 'How many hundreds, tens and ones make 245?',
     predictActual: (state) => `${state.score} so far`,
     rules: [
@@ -406,6 +419,7 @@ export const CHALLENGES: Challenge[] = [
     project: 'Showcase Game Studio',
     prompt: 'Free build! Make something to show your family.',
     standards: ['2.MD.D.10'],
+    tryAtHome: "Ask her to show you her project and explain what each block does.",
     predictQuestion: 'What do you think your robot will do?',
     predictActual: (state) =>
       state.said.length ? `it said ${state.said.join(', ')}` : 'it moved around',

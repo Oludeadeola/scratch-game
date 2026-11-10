@@ -78,6 +78,12 @@ export interface Room {
   meta: Y.Map<unknown>;
   /** Stars awarded, keyed by `${participantName}:${week}`. */
   stars: Y.Map<number>;
+  /**
+   * Challenges already passed, keyed the same way. Separate from `stars`
+   * because the teacher can hand out extra stars, and because pressing Run a
+   * second time must not mint a second star.
+   */
+  completions: Y.Map<boolean>;
   awareness: Awareness;
   websocket: WebsocketProvider | null;
   /** Null when the browser has no usable IndexedDB. */
@@ -96,11 +102,21 @@ const SYNC_URL =
  * `roomId` is the project key. The PRD gives one project per student per week,
  * so it looks like `demo-class/ada/week-3`.
  */
-export function openRoom(roomId: string): Room {
+export interface OpenRoomOptions {
+  /**
+   * Read the project from this device only, with no socket and no presence.
+   * The progress view uses it to total up twelve weeks of stars without
+   * announcing a parent as a participant in twelve lessons.
+   */
+  local?: boolean;
+}
+
+export function openRoom(roomId: string, options: OpenRoomOptions = {}): Room {
   const doc = new Y.Doc();
   const events = doc.getArray<string>('events');
   const meta = doc.getMap<unknown>('meta');
   const stars = doc.getMap<number>('stars');
+  const completions = doc.getMap<boolean>('completions');
 
   // IndexedDB is missing on the server, and can be blocked in a locked-down
   // browser profile. Neither is a reason to fail the lesson: without it the
@@ -120,9 +136,9 @@ export function openRoom(roomId: string): Room {
 
   let websocket: WebsocketProvider | null = null;
   try {
-    websocket = new WebsocketProvider(SYNC_URL, roomId, doc, {
-      connect: true,
-    });
+    if (!options.local) {
+      websocket = new WebsocketProvider(SYNC_URL, roomId, doc, { connect: true });
+    }
   } catch {
     // No sync server reachable. The editor still works offline against
     // IndexedDB, and will pick the room up when the connection returns.
@@ -137,6 +153,7 @@ export function openRoom(roomId: string): Room {
     events,
     meta,
     stars,
+    completions,
     awareness,
     websocket,
     indexeddb,
@@ -203,4 +220,35 @@ export function starsThisWeek(
   week: number,
 ): number {
   return stars.get(starKey(name, week)) ?? 0;
+}
+
+export function hasCompleted(
+  completions: Y.Map<boolean>,
+  name: string,
+  week: number,
+): boolean {
+  return completions.get(starKey(name, week)) === true;
+}
+
+/**
+ * Awards the challenge star exactly once.
+ *
+ * Returns true only on the first pass, so the caller knows whether this is a
+ * moment worth celebrating or just another run of a script that already works.
+ */
+export function completeChallenge(
+  completions: Y.Map<boolean>,
+  stars: Y.Map<number>,
+  name: string,
+  week: number,
+): boolean {
+  if (hasCompleted(completions, name, week)) return false;
+  const doc = completions.doc;
+  const award = () => {
+    completions.set(starKey(name, week), true);
+    stars.set(starKey(name, week), (stars.get(starKey(name, week)) ?? 0) + 1);
+  };
+  if (doc) doc.transact(award);
+  else award();
+  return true;
 }
