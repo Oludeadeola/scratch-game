@@ -101,8 +101,27 @@ export interface Room {
   destroy: () => void;
 }
 
-const SYNC_URL =
-  process.env.NEXT_PUBLIC_SYNC_URL ?? 'ws://localhost:1234';
+/**
+ * Where the room server lives.
+ *
+ * Unset, it falls back to a local dev server — but only when the page is
+ * itself being served locally. A deployed site has no business dialling
+ * `ws://localhost`: the browser blocks it as mixed content, and the editor
+ * would sit showing "connecting" forever instead of telling the truth, which
+ * is that this build has no room server configured and everything is being
+ * saved on the device.
+ *
+ * Set NEXT_PUBLIC_SYNC_URL to a `wss://` host to turn live co-editing on.
+ */
+function resolveSyncUrl(): string | null {
+  const configured = process.env.NEXT_PUBLIC_SYNC_URL?.trim();
+  if (configured) return configured;
+  if (typeof window === 'undefined') return null;
+  const { hostname } = window.location;
+  const isLocal =
+    hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+  return isLocal ? 'ws://localhost:1234' : null;
+}
 
 /**
  * Opens (or re-opens) a room.
@@ -143,9 +162,10 @@ export function openRoom(roomId: string, options: OpenRoomOptions = {}): Room {
     : Promise.resolve();
 
   let websocket: WebsocketProvider | null = null;
+  const syncUrl = resolveSyncUrl();
   try {
-    if (!options.local) {
-      websocket = new WebsocketProvider(SYNC_URL, roomId, doc, { connect: true });
+    if (!options.local && syncUrl) {
+      websocket = new WebsocketProvider(syncUrl, roomId, doc, { connect: true });
     }
   } catch {
     // No sync server reachable. The editor still works offline against
