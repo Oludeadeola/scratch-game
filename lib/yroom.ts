@@ -20,6 +20,7 @@
  */
 
 import * as Y from 'yjs';
+import type { Track } from './ages';
 import { WebsocketProvider } from 'y-websocket';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Awareness } from 'y-protocols/awareness';
@@ -46,6 +47,12 @@ export interface RoomMeta {
   runSpeed: 'normal' | 'slow';
   /** Which week's challenge this project is working on. */
   week: number;
+  /**
+   * Which course this project follows. The track belongs to the lesson, not
+   * to the person: a 6-year-old and her teacher work the same challenge, even
+   * though they see different blocks.
+   */
+  track: Track;
 }
 
 export const DEFAULT_META: RoomMeta = {
@@ -53,6 +60,7 @@ export const DEFAULT_META: RoomMeta = {
   runToken: 0,
   runSpeed: 'normal',
   week: 1,
+  track: 'core',
 };
 
 /** High-contrast cursor colours, distinguishable for common colour blindness. */
@@ -177,6 +185,7 @@ export function readMeta(meta: Y.Map<unknown>): RoomMeta {
     runSpeed:
       (meta.get('runSpeed') as RoomMeta['runSpeed']) ?? DEFAULT_META.runSpeed,
     week: (meta.get('week') as number) ?? DEFAULT_META.week,
+    track: (meta.get('track') as Track) ?? DEFAULT_META.track,
   };
 }
 

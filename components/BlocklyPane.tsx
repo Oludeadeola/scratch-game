@@ -31,11 +31,11 @@ import {
   registerBlocks,
   setNumberPadHandler,
   themeFor,
-  toolboxFor,
+  toolboxForProfile,
   tooltipForType,
   workspaceToProgram,
 } from '@/lib/blocks';
-import { type Mode, settingsForMode } from '@/lib/ages';
+import { type AgeProfile } from '@/lib/ages';
 import { HAT_ID, bindWorkspace } from '@/lib/sync';
 import type { Program } from '@/lib/program';
 import type { Room } from '@/lib/yroom';
@@ -48,7 +48,8 @@ const CURSOR_INTERVAL_MS = 50;
 
 export interface BlocklyPaneProps {
   room: Room;
-  mode: Mode;
+  /** Everything this child's age changes about the editor. */
+  profile: AgeProfile;
   locked: boolean;
   people: PresenceEntry[];
   onProgramChange: (program: Program) => void;
@@ -61,7 +62,7 @@ export interface BlocklyPaneProps {
 
 export default function BlocklyPane({
   room,
-  mode,
+  profile,
   locked,
   people,
   onProgramChange,
@@ -86,12 +87,12 @@ export default function BlocklyPane({
     const host = hostRef.current;
     if (!host) return;
 
-    const settings = settingsForMode(mode);
-    registerBlocks(mode);
+    const settings = profile;
+    registerBlocks(profile.mode);
 
     const workspace = Blockly.inject(host, {
-      toolbox: toolboxFor(mode),
-      theme: themeFor(mode),
+      toolbox: toolboxForProfile(profile),
+      theme: themeFor(profile.mode),
       renderer: 'zelos',
       horizontalLayout: settings.horizontalToolbox,
       toolboxPosition: settings.horizontalToolbox ? 'start' : 'start',
@@ -105,9 +106,7 @@ export default function BlocklyPane({
         minScale: 0.5,
         maxScale: 2,
       },
-      grid: settings.snap
-        ? { spacing: 28, length: 3, colour: '#e2e8f0', snap: true }
-        : undefined,
+      grid: { spacing: 28, length: 3, colour: '#e2e8f0', snap: true },
     });
 
     workspaceRef.current = workspace;
@@ -185,7 +184,7 @@ export default function BlocklyPane({
     };
     // Rebuilt when the room or the mode changes; both mean a different editor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room, mode]);
+  }, [room, profile]);
 
   // The number pad handler is global to Blockly, so it is owned by whichever
   // pane is currently mounted.
@@ -279,7 +278,13 @@ export default function BlocklyPane({
         </div>
       )}
 
-      <NumberPad request={padRequest} onClose={() => setPadRequest(null)} />
+      <NumberPad
+        request={padRequest}
+        ageMax={
+          padRequest?.purpose === 'repeat' ? profile.maxRepeat : profile.maxNumber
+        }
+        onClose={() => setPadRequest(null)}
+      />
     </div>
   );
 }

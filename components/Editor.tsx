@@ -21,13 +21,14 @@ import type * as Blockly from 'blockly/core';
 import {
   type Challenge,
   type CheckResult,
-  challengeForWeek,
+  challengeFor,
   checkChallenge,
 } from '@/lib/challenges';
 import { EMPTY_PROGRAM, type Program } from '@/lib/program';
 import { type Frame, type RobotState, collectFrames, freshState } from '@/lib/runtime';
-import { type Mode, modeLabel } from '@/lib/ages';
-import { speak, speakProgram, stopSpeaking } from '@/lib/speech';
+import { type AgeProfile, modeLabel } from '@/lib/ages';
+import { speakProgram, stopSpeaking } from '@/lib/speech';
+import { speakCheer, speakNudge, speakPraise } from '@/lib/voice';
 import {
   type Participant,
   type Role,
@@ -47,6 +48,7 @@ import BlocklyPane from './BlocklyPane';
 import Stage from './Stage';
 import ChallengeCard from './ChallengeCard';
 import { Avatars, type PresenceEntry } from './Presence';
+import Welcome from './Welcome';
 
 /** Milliseconds between frames. Slow mode is the PRD's step-by-step run. */
 const FRAME_MS = { normal: 160, slow: 750 } as const;
@@ -55,7 +57,8 @@ export interface EditorProps {
   roomId: string;
   name: string;
   role: Role;
-  mode: Mode;
+  /** Everything this person's age changes about the editor. */
+  profile: AgeProfile;
   week: number;
 }
 
@@ -87,14 +90,16 @@ function Lesson({
   room,
   name,
   role,
-  mode,
+  profile,
   week,
 }: EditorProps & { room: Room }) {
+  const mode = profile.mode;
   const [meta, setMeta] = useState<RoomMeta>(() => ({
     locked: false,
     runToken: 0,
     runSpeed: 'normal',
     week,
+    track: profile.track,
   }));
   const [program, setProgram] = useState<Program>(EMPTY_PROGRAM);
   const [robot, setRobot] = useState<RobotState>(() => freshState());
@@ -107,7 +112,10 @@ function Lesson({
   const [stars, setStars] = useState(0);
   const [online, setOnline] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
+  const [celebrating, setCelebrating] = useState(false);
   const [copied, setCopied] = useState(false);
+  /** The welcome card is up until she taps through it. */
+  const [greeted, setGreeted] = useState(role === 'teacher');
 
   const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
   const programRef = useRef<Program>(EMPTY_PROGRAM);
@@ -120,7 +128,7 @@ function Lesson({
   const playedTokenRef = useRef<number | null>(null);
 
   const locked = meta.locked && role === 'student';
-  const challenge: Challenge = challengeForWeek(meta.week);
+  const challenge: Challenge = challengeFor(meta.track, meta.week);
 
   /* ---------------------------------------------------------------- */
   /* Presence                                                          */
@@ -188,11 +196,13 @@ function Lesson({
     const apply = () => setMeta(readMeta(room.meta));
     room.meta.observe(apply);
     room.whenLoaded.then(() => {
-      if (room.meta.get('week') === undefined) writeMeta(room.meta, { week });
+      if (room.meta.get('week') === undefined) {
+        writeMeta(room.meta, { week, track: profile.track });
+      }
       apply();
     });
     return () => room.meta.unobserve(apply);
-  }, [room, week]);
+  }, [room, week, profile.track]);
 
   useEffect(() => {
     const apply = () => setStars(starsThisWeek(room.stars, name, meta.week));
@@ -239,6 +249,10 @@ function Lesson({
 
       const marked = checkChallenge(challenge, programRef.current);
       setResult(marked);
+
+      // The robot talks to her by name either way. Never "wrong": a child who
+      // is told she is wrong four times stops pressing Run, and a child who
+      // stops pressing Run stops learning.
       if (marked.passed) {
         const firstTime = completeChallenge(
           room.completions,
@@ -246,7 +260,13 @@ function Lesson({
           name,
           meta.week,
         );
-        if (firstTime) speak('Challenge complete! You earned a star.');
+        if (firstTime) {
+          setCelebrating(true);
+          window.setTimeout(() => setCelebrating(false), 2600);
+        }
+        speakPraise(name);
+      } else {
+        speakNudge(name, marked.results.find((rule) => !rule.passed)?.label);
       }
     },
     [challenge, highlight, meta.week, name, room.completions, room.stars],
@@ -300,6 +320,17 @@ function Lesson({
 
   return (
     <div className="editor">
+      {!greeted && (
+        <Welcome
+          name={name}
+          project={challenge.project}
+          prompt={challenge.prompt}
+          returning={stars > 0 || program.nodes.length > 0}
+          stars={stars}
+          onStart={() => setGreeted(true)}
+        />
+      )}
+      {celebrating && <Confetti />}
       <header className="topbar">
         <div className="topbar-left">
           <span className="brand">MathBlocks&nbsp;Live</span>
@@ -366,7 +397,10 @@ function Lesson({
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => awardStar(room.stars, name, meta.week)}
+                onClick={() => {
+                  awardStar(room.stars, name, meta.week);
+                  speakCheer(name);
+                }}
                 title="Send this student an extra star"
               >
                 ⭐ Send star
@@ -391,7 +425,7 @@ function Lesson({
         <section className="layout-editor">
           <BlocklyPane
             room={room}
-            mode={mode}
+            profile={profile}
             locked={locked}
             people={people}
             onProgramChange={setProgram}
@@ -424,6 +458,32 @@ function Lesson({
           />
         </section>
       </main>
+    </div>
+  );
+}
+
+/**
+ * A short burst of stars when a challenge is passed for the first time.
+ *
+ * Pure CSS and a handful of spans: no library, nothing to load, and it costs a
+ * Chromebook almost nothing. Hidden from screen readers, and suppressed
+ * entirely for anyone who has asked for reduced motion.
+ */
+function Confetti() {
+  const pieces = Array.from({ length: 28 }, (_, i) => i);
+  return (
+    <div className="confetti" aria-hidden="true">
+      {pieces.map((i) => (
+        <span
+          key={i}
+          className="confetti-piece"
+          style={{
+            left: `${(i * 37) % 100}%`,
+            animationDelay: `${(i % 7) * 90}ms`,
+            background: ['#f59e0b', '#1d6fd0', '#d6336c', '#15803d', '#8a3ffc'][i % 5],
+          }}
+        />
+      ))}
     </div>
   );
 }

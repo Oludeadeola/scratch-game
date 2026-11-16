@@ -3,7 +3,9 @@ const path = require('path');
 // Resolved against the working directory, not this file, so `npm run verify`
 // can pass a path relative to the project root.
 const OUT = path.resolve(process.cwd(), process.argv[2]);
-const { challengeForWeek, checkChallenge } = require(path.join(OUT, 'challenges.js'));
+const { challengeFor, challengesFor, checkChallenge } = require(
+  path.join(OUT, 'challenges.js'),
+);
 const { runToEnd } = require(path.join(OUT, 'runtime.js'));
 
 let id = 0;
@@ -15,6 +17,7 @@ const n = (op, args = {}, body) => {
 
 const cases = [
   {
+    track: 'core',
     week: 1,
     label: 'count by 5s to 50',
     program: { nodes: [
@@ -26,6 +29,7 @@ const cases = [
     expect: true,
   },
   {
+    track: 'core',
     week: 1,
     label: 'counts by 5s but only to 45 (should fail)',
     program: { nodes: [
@@ -35,6 +39,7 @@ const cases = [
     expect: false,
   },
   {
+    track: 'core',
     week: 2,
     label: 'square then triangle',
     program: { nodes: [
@@ -54,24 +59,28 @@ const cases = [
     expect: true,
   },
   {
+    track: 'core',
     week: 3,
     label: 'land on 12 in two jumps',
     program: { nodes: [n('move_steps', { N: 7 }), n('move_steps', { N: 5 })] },
     expect: true,
   },
   {
+    track: 'core',
     week: 3,
     label: 'lands on 12 but in three jumps (should fail)',
     program: { nodes: [n('move_steps', { N: 4 }), n('move_steps', { N: 4 }), n('move_steps', { N: 4 })] },
     expect: false,
   },
   {
+    track: 'core',
     week: 4,
     label: 'start at 15, back to 8',
     program: { nodes: [n('go_to_number', { N: 15 }), n('move_back', { N: 7 })] },
     expect: true,
   },
   {
+    track: 'core',
     week: 5,
     label: 'repeat 3, add 4, say 12',
     program: { nodes: [
@@ -81,12 +90,14 @@ const cases = [
     expect: true,
   },
   {
+    track: 'core',
     week: 6,
     label: 'count back by 5s from 60',
     program: { nodes: [n('say_each_number', { FROM: 60, TO: 0, STEP: 5 })] },
     expect: true,
   },
   {
+    track: 'core',
     week: 7,
     label: 'half, third and quarter turns',
     program: { nodes: [
@@ -97,18 +108,21 @@ const cases = [
     expect: true,
   },
   {
+    track: 'core',
     week: 8,
     label: 'even numbers to 20',
     program: { nodes: [n('say_each_number', { FROM: 2, TO: 20, STEP: 2 })] },
     expect: true,
   },
   {
+    track: 'core',
     week: 8,
     label: 'counts by 1s, says odds too (should fail)',
     program: { nodes: [n('say_each_number', { FROM: 1, TO: 20, STEP: 1 })] },
     expect: false,
   },
   {
+    track: 'core',
     week: 9,
     label: 'two lines, second 3 longer',
     program: { nodes: [
@@ -123,6 +137,7 @@ const cases = [
     expect: true,
   },
   {
+    track: 'core',
     week: 10,
     label: '41 cents: 25 + 10 + 5 + 1',
     program: { nodes: [
@@ -134,6 +149,7 @@ const cases = [
     expect: true,
   },
   {
+    track: 'core',
     week: 11,
     label: 'build 245',
     program: { nodes: [
@@ -144,9 +160,70 @@ const cases = [
     expect: true,
   },
   {
+    track: 'core',
     week: 12,
     label: 'free build',
     program: { nodes: [n('move_steps', { N: 3 }), n('say_text', { TEXT: 'Hi' }), n('change_score', { N: 1 })] },
+    expect: true,
+  },
+  /* ---- Early Steps, ages 4-6 ---- */
+  {
+    track: 'early',
+    week: 1,
+    label: 'move to 5',
+    program: { nodes: [n('move_steps', { N: 5 })] },
+    expect: true,
+  },
+  {
+    track: 'early',
+    week: 1,
+    label: 'stops on 4 instead (should fail)',
+    program: { nodes: [n('move_steps', { N: 4 })] },
+    expect: false,
+  },
+  {
+    track: 'early',
+    week: 2,
+    label: 'say hello three times',
+    program: {
+      nodes: [n('repeat_times', { N: 3 }, [n('say_text', { TEXT: 'Hello!' })])],
+    },
+    expect: true,
+  },
+  {
+    track: 'early',
+    week: 3,
+    label: 'draw a box',
+    program: {
+      nodes: [
+        n('pen_down'),
+        n('repeat_times', { N: 4 }, [
+          n('move_steps', { N: 3 }),
+          n('turn_fraction', { DIR: 'right', FRACTION: 4 }),
+        ]),
+      ],
+    },
+    expect: true,
+  },
+  {
+    track: 'early',
+    week: 4,
+    label: 'count to ten',
+    program: { nodes: [n('say_each_number', { FROM: 1, TO: 10, STEP: 1 })] },
+    expect: true,
+  },
+  {
+    track: 'early',
+    week: 5,
+    label: 'there and back',
+    program: { nodes: [n('move_steps', { N: 4 }), n('move_back', { N: 4 })] },
+    expect: true,
+  },
+  {
+    track: 'early',
+    week: 6,
+    label: 'free play',
+    program: { nodes: [n('move_steps', { N: 2 }), n('say_text', { TEXT: 'Hi' })] },
     expect: true,
   },
 ];
@@ -154,18 +231,33 @@ const cases = [
 let pass = 0;
 let fail = 0;
 for (const testCase of cases) {
-  const challenge = challengeForWeek(testCase.week);
+  const challenge = challengeFor(testCase.track, testCase.week);
   const result = checkChallenge(challenge, testCase.program);
   const ok = result.passed === testCase.expect;
   if (ok) {
     pass += 1;
-    console.log(`  PASS  wk${String(testCase.week).padStart(2)}  ${testCase.label}`);
+    console.log(`  PASS  ${testCase.track.padEnd(5)} wk${String(testCase.week).padStart(2)}  ${testCase.label}`);
   } else {
     fail += 1;
-    console.log(`  FAIL  wk${String(testCase.week).padStart(2)}  ${testCase.label}`);
+    console.log(`  FAIL  ${testCase.track.padEnd(5)} wk${String(testCase.week).padStart(2)}  ${testCase.label}`);
     console.log(`        expected passed=${testCase.expect}, got ${result.passed}`);
     for (const rule of result.results) {
       console.log(`          [${rule.passed ? 'x' : ' '}] ${rule.label}`);
+    }
+  }
+}
+
+// Every week in both tracks must exist and carry its standards and home note.
+for (const track of ['early', 'core']) {
+  for (const challenge of challengesFor(track)) {
+    const complete =
+      challenge.prompt &&
+      challenge.standards.length > 0 &&
+      challenge.tryAtHome &&
+      challenge.rules.length > 0;
+    if (!complete) {
+      fail += 1;
+      console.log(`  FAIL  ${track} wk${challenge.week} is missing prompt, standards, rules or tryAtHome`);
     }
   }
 }

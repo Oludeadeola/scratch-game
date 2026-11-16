@@ -1,33 +1,55 @@
 'use client';
 
 /**
- * The big number pad.
+ * The number pad.
  *
- * Tapping any number on a block opens this instead of a text cursor. Keys are
- * large touch targets so a 7-year-old can hit them on an iPad, and the value is
- * clamped to the block's own range so a child cannot put 900 into "turn".
+ * Tapping any number on a block opens this instead of a text cursor. It comes
+ * in two shapes, because "choose a number" means something different at four
+ * and at eleven:
+ *
+ *   Small range (10 or less)  — every number laid out as its own button. A
+ *                               four-year-old picks 3 by pressing 3, with no
+ *                               concept of digits, no backspace, no mistakes.
+ *   Larger range              — a keypad, entered digit by digit.
+ *
+ * The ceiling comes from the child's age, intersected with the block's own
+ * range. The block's range is the same on every client; the age cap only
+ * narrows what *this* child can choose, so a teacher setting 15 on a
+ * five-year-old's script still arrives intact.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { NumberPadRequest } from '@/lib/blocks';
+
+/** At or below this many options, show the numbers themselves. */
+const GRID_LIMIT = 10;
 
 export interface NumberPadProps {
   request: NumberPadRequest | null;
+  /** The largest number this child's age allows. */
+  ageMax: number;
   onClose: () => void;
 }
 
-export default function NumberPad({ request, onClose }: NumberPadProps) {
+export default function NumberPad({ request, ageMax, onClose }: NumberPadProps) {
   const [draft, setDraft] = useState('0');
 
   useEffect(() => {
     if (request) setDraft(String(request.initial));
   }, [request]);
 
+  const bounds = useMemo(() => {
+    if (!request) return { min: 0, max: 0 };
+    return {
+      min: request.min,
+      // Never widen the block's own range, only narrow it.
+      max: Math.min(request.max, ageMax),
+    };
+  }, [request, ageMax]);
+
   useEffect(() => {
     if (!request) return;
     const onKey = (event: KeyboardEvent) => {
-      // The pad is the point, but a teacher on a laptop should not be forced
-      // to use the mouse.
       if (event.key === 'Escape') cancel();
       else if (event.key === 'Enter') confirm();
       else if (event.key === 'Backspace') setDraft((d) => d.slice(0, -1) || '0');
@@ -37,14 +59,16 @@ export default function NumberPad({ request, onClose }: NumberPadProps) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [request, draft]);
+  }, [request, draft, bounds.min, bounds.max]);
 
   if (!request) return null;
 
-  const { min, max } = request;
+  const { min, max } = bounds;
   const allowNegative = min < 0;
   const value = Number(draft);
   const valid = Number.isFinite(value) && value >= min && value <= max;
+  // A short, all-positive range is picked rather than typed.
+  const useGrid = min >= 0 && max <= GRID_LIMIT;
 
   function press(digit: string) {
     setDraft((current) => {
@@ -70,6 +94,11 @@ export default function NumberPad({ request, onClose }: NumberPadProps) {
     );
   }
 
+  function choose(picked: number) {
+    request?.resolve(picked);
+    onClose();
+  }
+
   function confirm() {
     if (!valid) return;
     request?.resolve(value);
@@ -90,59 +119,84 @@ export default function NumberPad({ request, onClose }: NumberPadProps) {
         aria-modal="true"
         aria-label="Choose a number"
       >
-        <div className="pad-readout" aria-live="polite">
-          {draft}
-        </div>
-        <p className="pad-range">
-          {allowNegative ? `${min} to ${max}` : `0 to ${max}`}
-        </p>
+        {useGrid ? (
+          <>
+            <p className="pad-ask">How many?</p>
+            <div className="pad-grid">
+              {Array.from({ length: max - min + 1 }, (_, i) => min + i).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={`pad-choice ${option === request.initial ? 'is-on' : ''}`}
+                  onClick={() => choose(option)}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            <div className="pad-actions">
+              <button type="button" className="btn btn-ghost" onClick={cancel}>
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="pad-readout" aria-live="polite">
+              {draft}
+            </div>
+            <p className="pad-range">
+              {allowNegative ? `${min} to ${max}` : `0 to ${max}`}
+            </p>
 
-        <div className="pad-keys">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-            <button
-              key={digit}
-              type="button"
-              className="pad-key"
-              onClick={() => press(digit)}
-            >
-              {digit}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="pad-key pad-key-soft"
-            onClick={toggleSign}
-            disabled={!allowNegative}
-            aria-label="Plus or minus"
-          >
-            ±
-          </button>
-          <button type="button" className="pad-key" onClick={() => press('0')}>
-            0
-          </button>
-          <button
-            type="button"
-            className="pad-key pad-key-soft"
-            onClick={backspace}
-            aria-label="Delete the last digit"
-          >
-            ⌫
-          </button>
-        </div>
+            <div className="pad-keys">
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+                <button
+                  key={digit}
+                  type="button"
+                  className="pad-key"
+                  onClick={() => press(digit)}
+                >
+                  {digit}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="pad-key pad-key-soft"
+                onClick={toggleSign}
+                disabled={!allowNegative}
+                aria-label="Plus or minus"
+              >
+                ±
+              </button>
+              <button type="button" className="pad-key" onClick={() => press('0')}>
+                0
+              </button>
+              <button
+                type="button"
+                className="pad-key pad-key-soft"
+                onClick={backspace}
+                aria-label="Delete the last digit"
+              >
+                ⌫
+              </button>
+            </div>
 
-        <div className="pad-actions">
-          <button type="button" className="btn btn-ghost" onClick={cancel}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={confirm}
-            disabled={!valid}
-          >
-            {valid ? 'OK' : `Pick ${min}–${max}`}
-          </button>
-        </div>
+            <div className="pad-actions">
+              <button type="button" className="btn btn-ghost" onClick={cancel}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={confirm}
+                disabled={!valid}
+              >
+                {valid ? 'OK' : `Pick ${min}–${max}`}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

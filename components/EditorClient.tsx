@@ -18,10 +18,8 @@ import dynamic from 'next/dynamic';
 import {
   MAX_AGE,
   MIN_AGE,
-  type Mode,
-  modeDescription,
-  modeForAge,
-  modeLabel,
+  profileForAge,
+  TEACHER_PROFILE,
 } from '@/lib/ages';
 import { type Identity, loadIdentity, saveIdentity } from '@/lib/identity';
 import ErrorBoundary from './ErrorBoundary';
@@ -68,7 +66,11 @@ export default function EditorClient({ roomId, week }: EditorClientProps) {
         week={week}
         name={identity.name}
         role={identity.role}
-        mode={identity.mode}
+        profile={
+          identity.role === 'teacher'
+            ? TEACHER_PROFILE
+            : profileForAge(identity.age)
+        }
       />
     </ErrorBoundary>
   );
@@ -84,14 +86,14 @@ function WhoAreYou({
   const [name, setName] = useState('');
   const [age, setAge] = useState(7);
 
-  const mode: Mode = modeForAge(age);
-  const classCode = roomId.replace(/-week-\d+$/, '');
+  const profile = profileForAge(age);
+  const classCode = roomId.replace(/-(early-)?week-\d+$/, '');
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
-    const identity: Identity = { name: trimmed, age, role: 'student', mode };
+    const identity: Identity = { name: trimmed, age, role: 'student' };
     saveIdentity(identity);
     onReady(identity);
   }
@@ -140,9 +142,11 @@ function WhoAreYou({
           </p>
         </div>
 
-        <div className={`mode-card is-${mode}`}>
-          <span className="mode-name">{modeLabel(mode)} blocks</span>
-          <p className="mode-desc">{modeDescription(mode)}</p>
+        <div className={`mode-card is-${profile.mode}`}>
+          <span className="mode-name">
+            Age {profile.age} · {profile.title}
+          </span>
+          <p className="mode-desc">{profile.unlocks}</p>
         </div>
 
         <button type="submit" className="btn btn-primary btn-big">

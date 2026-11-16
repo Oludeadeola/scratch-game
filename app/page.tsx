@@ -3,27 +3,28 @@
 /**
  * The join screen.
  *
- * A teacher sends one link and a 7-year-old taps it, so joining asks for as
- * little as it can: who you are, how old you are, and which class. No email, no
- * password, no date of birth.
+ * A teacher sends one link and a 7-year-old taps it, so this asks as little as
+ * it can: who you are, how old you are, which class. No email, no password, no
+ * date of birth.
  *
- * The age question is the one that shapes everything downstream. It picks
- * between the two editors — picture blocks for 4-7, worded blocks for 8+ — and
- * it never leaves this device.
+ * Age is the question that shapes everything downstream — the blocks in the
+ * palette, how big a number the pad offers, whether a tap places a block, and
+ * which track of challenges you start on. So the screen shows what the age you
+ * picked actually gets you, rather than asking and silently deciding.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { CHALLENGES } from '@/lib/challenges';
+import { challengesFor } from '@/lib/challenges';
 import {
   MAX_AGE,
   MIN_AGE,
-  type Mode,
-  modeDescription,
-  modeForAge,
+  type Track,
   modeLabel,
+  profileForAge,
   suggestedGrade,
+  trackLabel,
 } from '@/lib/ages';
 import {
   loadIdentity,
@@ -41,8 +42,8 @@ export default function JoinPage() {
   const [classCode, setClassCode] = useState('sunshine');
   const [week, setWeek] = useState(1);
   const [role, setRole] = useState<'student' | 'teacher'>('student');
-  /** Null means "follow the age". A teacher can pin a mode for a child. */
-  const [modeOverride, setModeOverride] = useState<Mode | null>(null);
+  /** Null means "whatever this age suggests". */
+  const [trackOverride, setTrackOverride] = useState<Track | null>(null);
 
   useEffect(() => {
     const who = loadIdentity();
@@ -59,20 +60,28 @@ export default function JoinPage() {
   }, []);
 
   const isTeacher = role === 'teacher';
-  const mode: Mode = isTeacher ? 'builder' : (modeOverride ?? modeForAge(age));
-  const challenge = CHALLENGES.find((c) => c.week === week);
+  const profile = profileForAge(age);
+  const track: Track = trackOverride ?? (isTeacher ? 'core' : profile.track);
+  const weeks = useMemo(() => challengesFor(track), [track]);
+
+  // A track change can leave the chosen week off the end of the shorter one.
+  useEffect(() => {
+    if (week > weeks.length) setWeek(1);
+  }, [weeks.length, week]);
+
+  const challenge = weeks.find((c) => c.week === week);
 
   function join(event: React.FormEvent) {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed || !classCode.trim()) return;
 
-    saveIdentity({ name: trimmed, age: isTeacher ? 30 : age, role, mode });
+    saveIdentity({ name: trimmed, age: isTeacher ? 30 : age, role });
     saveLastRoom({ classCode, week });
 
-    // Only the room goes in the URL. A teacher can paste this link to the whole
-    // class without it carrying anybody's name.
-    router.push(`/p/${roomIdFor(classCode, week)}`);
+    // Only the room goes in the URL, so a teacher can paste this link to the
+    // whole class without it carrying anybody's name.
+    router.push(`/p/${roomIdFor(classCode, week, track)}`);
   }
 
   return (
@@ -106,7 +115,7 @@ export default function JoinPage() {
                 checked={role === option}
                 onChange={() => {
                   setRole(option);
-                  setModeOverride(null);
+                  setTrackOverride(null);
                 }}
               />
               {option === 'student' ? 'Student' : 'Teacher'}
@@ -115,51 +124,79 @@ export default function JoinPage() {
         </fieldset>
 
         {!isTeacher && (
-          <div className="field">
-            <span>How old are you?</span>
-            <div className="ages" role="group" aria-label="Your age">
-              {Array.from({ length: MAX_AGE - MIN_AGE + 1 }, (_, i) => MIN_AGE + i).map(
-                (value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`age ${age === value ? 'is-on' : ''}`}
-                    onClick={() => {
-                      setAge(value);
-                      setModeOverride(null);
-                    }}
-                    aria-pressed={age === value}
-                  >
-                    {value}
-                  </button>
-                ),
-              )}
+          <>
+            <div className="field">
+              <span>How old are you?</span>
+              <div className="ages" role="group" aria-label="Your age">
+                {Array.from({ length: MAX_AGE - MIN_AGE + 1 }, (_, i) => MIN_AGE + i).map(
+                  (value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`age ${age === value ? 'is-on' : ''}`}
+                      onClick={() => {
+                        setAge(value);
+                        setTrackOverride(null);
+                      }}
+                      aria-pressed={age === value}
+                    >
+                      {value}
+                    </button>
+                  ),
+                )}
+              </div>
+              <p className="age-note">
+                Usually {suggestedGrade(age)}. This stays on your device.
+              </p>
             </div>
-            <p className="age-note">
-              Usually {suggestedGrade(age)}. We only keep this on your device.
-            </p>
-          </div>
+
+            <div className={`mode-card is-${profile.mode}`}>
+              <div className="mode-head">
+                <span className="mode-name">
+                  Age {profile.age} · {profile.title}
+                </span>
+                <span className="mode-tag">{modeLabel(profile.mode)}</span>
+              </div>
+              <p className="mode-desc">{profile.unlocks}</p>
+
+              <ul className="limits">
+                <Limit label="Blocks" value={String(profile.blocks.length)} />
+                <Limit label="Numbers to" value={String(profile.maxNumber)} />
+                <Limit label="Repeat to" value={String(profile.maxRepeat)} />
+                <Limit
+                  label="Loop in loop"
+                  value={profile.allowNesting ? 'yes' : 'not yet'}
+                />
+              </ul>
+
+              <p className="mode-sample" aria-hidden="true">
+                {profile.mode === 'junior'
+                  ? '🏁  ➡️ 5   🔁 4   🏆 ➕ 5'
+                  : 'when Run is clicked → move 5 steps → repeat 4 times'}
+              </p>
+            </div>
+          </>
         )}
 
-        <div className={`mode-card is-${mode}`}>
-          <div className="mode-head">
-            <span className="mode-name">{modeLabel(mode)} blocks</span>
-            {!isTeacher && (
+        <div className="field">
+          <span>Course</span>
+          <div className="tracks" role="group" aria-label="Course">
+            {(['early', 'core'] as const).map((option) => (
               <button
+                key={option}
                 type="button"
-                className="mode-switch"
-                onClick={() =>
-                  setModeOverride(mode === 'junior' ? 'builder' : 'junior')
-                }
+                className={`track ${track === option ? 'is-on' : ''}`}
+                onClick={() => setTrackOverride(option)}
+                aria-pressed={track === option}
               >
-                Use {modeLabel(mode === 'junior' ? 'builder' : 'junior')} instead
+                <span className="track-name">{trackLabel(option)}</span>
+                <span className="track-meta">
+                  {challengesFor(option).length} weeks ·{' '}
+                  {option === 'early' ? 'ages 4–6' : 'ages 7+'}
+                </span>
               </button>
-            )}
+            ))}
           </div>
-          <p className="mode-desc">{modeDescription(mode)}</p>
-          <p className="mode-sample" aria-hidden="true">
-            {mode === 'junior' ? '🏁 ➡️ 5 🔁 4 🏆 ➕ 5' : 'when Run is clicked → move 5 steps'}
-          </p>
         </div>
 
         <label className="field">
@@ -177,7 +214,7 @@ export default function JoinPage() {
         <label className="field">
           <span>Week</span>
           <select value={week} onChange={(event) => setWeek(Number(event.target.value))}>
-            {CHALLENGES.map((c) => (
+            {weeks.map((c) => (
               <option key={c.week} value={c.week}>
                 Week {c.week} — {c.project}
               </option>
@@ -199,5 +236,14 @@ export default function JoinPage() {
         </div>
       </form>
     </main>
+  );
+}
+
+function Limit({ label, value }: { label: string; value: string }) {
+  return (
+    <li className="limit">
+      <span className="limit-value">{value}</span>
+      <span className="limit-label">{label}</span>
+    </li>
   );
 }

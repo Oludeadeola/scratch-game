@@ -18,7 +18,7 @@
  */
 
 import * as Blockly from 'blockly/core';
-import { type Mode } from './ages';
+import { type AgeProfile, type Mode, profileForAge } from './ages';
 import { type Node, type Program } from './program';
 
 /** Category colours, chosen for contrast on the light editor background. */
@@ -40,6 +40,11 @@ export type NumberPadRequest = {
   initial: number;
   min: number;
   max: number;
+  /**
+   * What the number is for. A repeat count has its own age ceiling, because
+   * "repeat 100 times" is a very different idea from "move 100 steps".
+   */
+  purpose: 'number' | 'repeat';
   /** Called with the chosen value, or null if the child cancelled. */
   resolve: (value: number | null) => void;
 };
@@ -60,10 +65,12 @@ class MathBlocksNumberField extends Blockly.FieldNumber {
     }
     const min = this.getMin();
     const max = this.getMax();
+    const owner = this.getSourceBlock();
     numberPadHandler({
       initial: Number(this.getValue()) || 0,
       min: Number.isFinite(min) ? min : -999,
       max: Number.isFinite(max) ? max : 999,
+      purpose: owner?.type === 'repeat_times' ? 'repeat' : 'number',
       resolve: (value) => {
         if (value !== null) this.setValue(value);
       },
@@ -373,25 +380,35 @@ export function registerBlocks(mode: Mode): void {
 /* ------------------------------------------------------------------ */
 
 /**
- * Junior sees a short palette. Every block here can be understood from its
- * picture, and the abstract ones (conditionals, set-score, ranged counting)
- * are held back until Builder.
+ * Which blocks a child sees, and in what order, comes from her age. The ladder
+ * in ages.ts owns the progression; this only groups the result into
+ * categories. A block missing from a palette is still a perfectly valid block
+ * in the shared script — a teacher can drop one in and it works on the child's
+ * screen. The palette is about what she is offered, not what she is allowed.
  */
-const JUNIOR_PALETTE: Record<string, string[]> = {
-  Move: ['move_steps', 'move_back', 'turn_fraction', 'go_home'],
-  Say: ['say_text', 'say_score', 'grow_by', 'shrink_by'],
-  Score: ['change_score'],
-  Pen: ['pen_down', 'pen_up'],
-  Control: ['wait_seconds', 'repeat_times', 'stop_all'],
+const CATEGORY_OF: Record<string, string> = {
+  move_steps: 'Move',
+  move_back: 'Move',
+  turn_fraction: 'Move',
+  go_to_number: 'Move',
+  go_home: 'Move',
+  say_text: 'Say',
+  say_for_seconds: 'Say',
+  say_score: 'Say',
+  say_each_number: 'Say',
+  grow_by: 'Say',
+  shrink_by: 'Say',
+  set_score: 'Score',
+  change_score: 'Score',
+  pen_down: 'Pen',
+  pen_up: 'Pen',
+  wait_seconds: 'Control',
+  repeat_times: 'Control',
+  if_score: 'Control',
+  stop_all: 'Control',
 };
 
-const BUILDER_PALETTE: Record<string, string[]> = {
-  Move: ['move_steps', 'move_back', 'turn_fraction', 'go_to_number', 'go_home'],
-  Say: ['say_text', 'say_for_seconds', 'say_score', 'say_each_number', 'grow_by', 'shrink_by'],
-  Score: ['set_score', 'change_score'],
-  Pen: ['pen_down', 'pen_up'],
-  Control: ['wait_seconds', 'repeat_times', 'if_score', 'stop_all'],
-};
+const CATEGORY_ORDER = ['Move', 'Say', 'Score', 'Pen', 'Control'];
 
 const CATEGORY_COLOUR: Record<string, string> = {
   Move: COLOURS.motion,
@@ -410,16 +427,37 @@ const JUNIOR_CATEGORY_NAME: Record<string, string> = {
   Control: '🔁',
 };
 
-export function toolboxFor(mode: Mode): Blockly.utils.toolbox.ToolboxDefinition {
-  const palette = mode === 'junior' ? JUNIOR_PALETTE : BUILDER_PALETTE;
+export function toolboxForAge(age: number): Blockly.utils.toolbox.ToolboxDefinition {
+  return toolboxForProfile(profileForAge(age));
+}
+
+export function toolboxForProfile(
+  profile: AgeProfile,
+): Blockly.utils.toolbox.ToolboxDefinition {
+  const allowed = new Set(profile.blocks);
+  const grouped = new Map<string, string[]>();
+  for (const type of profile.blocks) {
+    const category = CATEGORY_OF[type];
+    if (!category || !allowed.has(type)) continue;
+    const list = grouped.get(category) ?? [];
+    if (!list.includes(type)) list.push(type);
+    grouped.set(category, list);
+  }
+
   return {
     kind: 'categoryToolbox',
-    contents: Object.entries(palette).map(([name, types]) => ({
-      kind: 'category',
-      name: mode === 'junior' ? JUNIOR_CATEGORY_NAME[name] : name,
-      colour: CATEGORY_COLOUR[name],
-      contents: types.map((type) => ({ kind: 'block', type })),
-    })),
+    contents: CATEGORY_ORDER.filter((category) => grouped.get(category)?.length).map(
+      (category) => ({
+        kind: 'category',
+        name:
+          profile.mode === 'junior' ? JUNIOR_CATEGORY_NAME[category] : category,
+        colour: CATEGORY_COLOUR[category],
+        contents: (grouped.get(category) ?? []).map((type) => ({
+          kind: 'block',
+          type,
+        })),
+      }),
+    ),
   };
 }
 

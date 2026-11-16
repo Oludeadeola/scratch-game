@@ -12,14 +12,12 @@
  * without a child's name ending up in a server access log.
  */
 
-import { type Mode, clampAge, modeForAge } from './ages';
+import { clampAge } from './ages';
 
 export interface Identity {
   name: string;
   age: number;
   role: 'teacher' | 'student';
-  /** Normally derived from age, but a teacher can override it for a child. */
-  mode: Mode;
 }
 
 const KEY = 'mathblocks:identity';
@@ -35,14 +33,8 @@ export function loadIdentity(): Identity | null {
     const role = parsed.role === 'teacher' ? 'teacher' : 'student';
     // A teacher is an adult; age only shapes a child's editor.
     const age = role === 'teacher' ? 30 : clampAge(Number(parsed.age));
-    const mode: Mode =
-      parsed.mode === 'junior' || parsed.mode === 'builder'
-        ? parsed.mode
-        : role === 'teacher'
-          ? 'builder'
-          : modeForAge(age);
 
-    return { name: String(parsed.name).slice(0, 24), age, role, mode };
+    return { name: String(parsed.name).slice(0, 24), age, role };
   } catch {
     // Private browsing, cleared storage, or a corrupt value. Treat all three
     // the same: nobody is signed in on this device yet.
@@ -113,6 +105,23 @@ export function normaliseClassCode(raw: string): string {
     .replace(/^-|-$/g, '');
 }
 
-export function roomIdFor(classCode: string, week: number): string {
-  return `${normaliseClassCode(classCode) || 'class'}-week-${week}`;
+/**
+ * The project key. The track is in it so that Early Steps week 1 and the 2nd
+ * grade week 1 are different projects rather than the same one with two sets
+ * of rules.
+ */
+export function roomIdFor(
+  classCode: string,
+  week: number,
+  track: 'early' | 'core' = 'core',
+): string {
+  const code = normaliseClassCode(classCode) || 'class';
+  return track === 'early'
+    ? `${code}-early-week-${week}`
+    : `${code}-week-${week}`;
+}
+
+/** Reads the track back out of a room id. */
+export function trackFromRoomId(roomId: string): 'early' | 'core' {
+  return /-early-week-\d+$/.test(roomId) ? 'early' : 'core';
 }

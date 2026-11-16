@@ -7,6 +7,7 @@
  * the state the robot ended in (is the score 50?).
  */
 
+import type { Track } from './ages';
 import {
   type Node,
   type Program,
@@ -186,7 +187,7 @@ const finalSpot = (state: RobotState): string =>
 /* The twelve weeks                                                    */
 /* ------------------------------------------------------------------ */
 
-export const CHALLENGES: Challenge[] = [
+export const CORE_CHALLENGES: Challenge[] = [
   {
     week: 1,
     project: 'Robot Number Quest',
@@ -438,8 +439,127 @@ export const CHALLENGES: Challenge[] = [
   },
 ];
 
-export function challengeForWeek(week: number): Challenge {
-  return CHALLENGES.find((c) => c.week === week) ?? CHALLENGES[0];
+/* ------------------------------------------------------------------ */
+/* Early Steps: ages 4-6                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Six short challenges for children who are not on the 2nd grade course yet.
+ *
+ * The rules here are deliberately generous. A four-year-old proving she can
+ * make a robot move five steps is the whole lesson; marking her down for the
+ * route she took would teach her the wrong thing. Standards are Kindergarten
+ * and 1st grade.
+ */
+export const EARLY_CHALLENGES: Challenge[] = [
+  {
+    week: 1,
+    project: 'Wake the Robot',
+    prompt: 'Make the robot move to number 5.',
+    standards: ['K.CC.B.4'],
+    tryAtHome: 'Count five steps together as you walk down the hall.',
+    predictQuestion: 'Where will the robot stop?',
+    predictActual: finalSpot,
+    rules: [
+      { label: 'The robot moved', test: (program) => countBlocks(program) > 0 },
+      { label: 'It stopped on 5', test: (_p, state) => standingOn(state, 5) },
+    ],
+  },
+  {
+    week: 2,
+    project: 'Say Hello',
+    prompt: 'Make the robot say hello three times.',
+    standards: ['K.CC.A.1'],
+    tryAtHome: 'Clap three times, then four. Ask which was more.',
+    predictQuestion: 'How many times will it speak?',
+    predictActual: (state) => String(state.said.length),
+    rules: [
+      { label: 'The robot said something', test: (_p, state) => state.said.length > 0 },
+      { label: 'It said it 3 times', test: (_p, state) => state.said.length === 3 },
+    ],
+  },
+  {
+    week: 3,
+    project: 'Draw a Box',
+    prompt: 'Put the pen down and draw a square.',
+    standards: ['K.G.A.2'],
+    tryAtHome: 'Find three square things in the kitchen and count their sides.',
+    predictQuestion: 'How many sides does a square have?',
+    predictActual: (state) => String(state.lines.length),
+    rules: [
+      { label: 'You put the pen down', test: (program) => opsUsed(program).has('pen_down') },
+      { label: 'You drew a square', test: (_p, state) => drewPolygon(state, 4) },
+    ],
+  },
+  {
+    week: 4,
+    project: 'Count to Ten',
+    prompt: 'Make the robot count all the way to 10.',
+    standards: ['K.CC.A.1'],
+    tryAtHome: 'Count ten socks into a pile, then count them back out.',
+    predictQuestion: 'What is the last number?',
+    predictActual: lastSaid,
+    rules: [
+      {
+        label: 'The robot counted 1, 2, 3 … up to 10',
+        test: (_p, state) => saidRun(state, countBy(1, 10, 1)),
+      },
+    ],
+  },
+  {
+    week: 5,
+    project: 'There and Back',
+    prompt: 'Move the robot forward, then bring it back to the start.',
+    standards: ['1.OA.C.5'],
+    tryAtHome: 'Take four steps forward and four back. Did you end where you began?',
+    predictQuestion: 'Which number will it finish on?',
+    predictActual: finalSpot,
+    rules: [
+      { label: 'You moved forward', test: (program) => opsUsed(program).has('move_steps') },
+      {
+        label: 'You came back',
+        test: (program) =>
+          opsUsed(program).has('move_back') || opsUsed(program).has('go_home'),
+      },
+      { label: 'The robot finished at 0', test: (_p, state) => standingOn(state, 0) },
+    ],
+  },
+  {
+    week: 6,
+    project: 'Your Own Robot',
+    prompt: 'Make the robot do anything you like!',
+    standards: ['K.CC.B.4'],
+    tryAtHome: 'Ask her to show you her robot and say what each block does.',
+    predictQuestion: 'What will your robot do?',
+    predictActual: (state) =>
+      state.said.length ? `it said ${state.said.join(', ')}` : 'it moved around',
+    rules: [
+      { label: 'You used at least 2 blocks', test: (program) => countBlocks(program) >= 2 },
+      {
+        label: 'The robot did something',
+        test: (_p, state) =>
+          state.said.length > 0 || state.lines.length > 0 || state.x !== 0 || state.y !== 0,
+      },
+    ],
+  },
+];
+
+export const TRACKS: Record<Track, Challenge[]> = {
+  early: EARLY_CHALLENGES,
+  core: CORE_CHALLENGES,
+};
+
+export function challengesFor(track: Track): Challenge[] {
+  return TRACKS[track] ?? CORE_CHALLENGES;
+}
+
+export function challengeFor(track: Track, week: number): Challenge {
+  const list = challengesFor(track);
+  return list.find((c) => c.week === week) ?? list[0];
+}
+
+export function weeksIn(track: Track): number {
+  return challengesFor(track).length;
 }
 
 /** Runs the program and marks it against the week's rules. */

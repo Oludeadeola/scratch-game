@@ -19,5 +19,6 @@
     "type": "shell",
     "command": "npm run lint",
     "runOn": "folderOpen"
-  }
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:system"
 }
