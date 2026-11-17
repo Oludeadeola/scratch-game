@@ -46,3 +46,6 @@ temp_auto_push.bat
 temp_interactive_push.bat
 .gitignore
 config.bat
+
+# the sync server keeps its own node_modules
+sync-server/node_modules/

@@ -7,7 +7,7 @@
     "build": "node init && next build --turbopack",
     "start": "node init && next start",
     "lint": "eslint",
-    "sync": "y-websocket-server",
+    "sync": "node sync-server/server.js",
     "typecheck": "tsc --noEmit",
     "verify": "tsc lib/program.ts lib/runtime.ts lib/challenges.ts lib/ages.ts --outDir .verify --module commonjs --target es2020 --skipLibCheck --esModuleInterop && node scripts/check-challenges.cjs .verify",
     "verify:sync": "node scripts/check-sync.cjs",

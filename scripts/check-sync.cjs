@@ -19,8 +19,10 @@ const Y = require('yjs');
 const { WebsocketProvider } = require('y-websocket');
 const WebSocket = require('ws');
 
-const PORT = 1239;
-const URL = `ws://localhost:${PORT}`;
+const PORT = Number(process.env.SYNC_PORT) || 1239;
+/** Set to test a server that is already running, e.g. the deployable one. */
+const EXTERNAL = process.env.SYNC_URL || '';
+const URL = EXTERNAL || `ws://localhost:${PORT}`;
 const ROOM = 'verify-' + Date.now();
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -70,21 +72,24 @@ function assert(ok, label, detail) {
 }
 
 async function main() {
-  console.log(`starting sync server on ${PORT}…`);
+  if (EXTERNAL) console.log(`testing the server already running at ${EXTERNAL}…`);
+  else console.log(`starting sync server on ${PORT}…`);
   const serverBin = path.join(
     process.cwd(),
     'node_modules',
     '.bin',
     process.platform === 'win32' ? 'y-websocket.cmd' : 'y-websocket',
   );
-  const server = spawn(serverBin, [], {
+  const server = EXTERNAL
+    ? { kill() {} }
+    : spawn(serverBin, [], {
     env: { ...process.env, PORT: String(PORT), HOST: 'localhost' },
     stdio: 'ignore',
     shell: process.platform === 'win32',
-  });
+      });
 
   // Give the server a moment to bind before the first client dials in.
-  await wait(1800);
+  await wait(EXTERNAL ? 0 : 1800);
 
   const teacher = connect('teacher');
   const student = connect('student');

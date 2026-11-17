@@ -1,0 +1,31 @@
+# Render blueprint for the room server.
+#
+# Only the sync server lives here. The Next.js app goes to Vercel, which is
+# better at it — global CDN, and the editor is static apart from one dynamic
+# route. What Vercel cannot do is hold a socket open for a whole lesson, which
+# is exactly and only what this service does.
+#
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo.
+# Then put the resulting wss:// URL into NEXT_PUBLIC_SYNC_URL on Vercel.
+
+services:
+  - type: web
+    name: mathblocks-sync
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: sync-server
+    buildCommand: npm ci
+    startCommand: npm start
+    # Render's own check, and something cheap for an uptime pinger to hit.
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # Render injects PORT. The server binds 0.0.0.0 by default, which is what
+      # the platform routes to; it must not bind loopback.
+      #
+      # Uncomment once more than one teacher shares this server, so one class
+      # cannot guess its way into another's project:
+      # - key: ALLOWED_ROOM_PREFIX
+      #   value: sunshine-
